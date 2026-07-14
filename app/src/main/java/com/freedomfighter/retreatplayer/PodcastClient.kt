@@ -1,11 +1,7 @@
 package com.freedomfighter.retreatplayer
 
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
-import java.io.IOException
-import java.util.concurrent.TimeUnit
 
 data class Episode(
     val title: String,
@@ -19,26 +15,12 @@ data class Episode(
  * Fetches a podcast RSS feed and lists its audio episodes: item title,
  * enclosure url/length, itunes:duration. Built against the feeds we generate in
  * notable-dhamma-teachers (podcastify.py) and dharmaseed-style feeds, whose
- * enclosure URLs may carry query strings and redirect — OkHttp follows those.
+ * enclosure URLs may carry query strings and redirect — [Http] follows those.
  * Blocking; run off the main thread.
  */
 object PodcastClient {
 
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(5, TimeUnit.MINUTES)
-        .build()
-
-    fun fetch(feedUrl: String): List<Episode> {
-        val request = Request.Builder().url(feedUrl).build()
-        http.newCall(request).execute().use { resp ->
-            if (!resp.isSuccessful) throw IOException("Feed answered HTTP ${resp.code}")
-            return parse(resp.body?.string() ?: throw IOException("Empty feed"))
-        }
-    }
-
-    fun download(url: String, dest: java.io.File, onProgress: (Float) -> Unit = {}) =
-        WebDavClient.download(url, "", "", dest, onProgress)
+    fun fetch(feedUrl: String): List<Episode> = parse(Http.getString(feedUrl))
 
     private fun parse(xml: String): List<Episode> {
         val parser = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }.newPullParser()

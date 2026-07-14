@@ -24,10 +24,10 @@ starts, nothing interrupts it.**
 
 1. Tap **+** and choose where to load recordings from:
    - **Files on this phone** — pick one or several audio files,
-   - **Shared WebDAV folder** — e.g. an Infomaniak kDrive folder
-     (`https://123456.connect.kdrive.infomaniak.com/…`, email + app password),
+   - **Shared kDrive folder** — an Infomaniak public share link
+     (`https://kdrive.infomaniak.com/app/share/…`) — read-only, no password,
    - **Podcast feed** — any RSS feed with audio enclosures.
-   The WebDAV and feed URLs are remembered and pre-filled next time.
+   The share link and feed URLs are remembered and pre-filled next time.
 2. Tick the recordings you want, press **Load**. Each one is stored locally.
 3. New tiles land under **Just loaded**; file each into **Bells & chanting**
    (kept on top — used every day) or **Dharma talks** with the ⋮ menu, and

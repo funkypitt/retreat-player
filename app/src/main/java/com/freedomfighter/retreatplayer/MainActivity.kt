@@ -44,7 +44,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -382,24 +381,25 @@ private fun PlayerPanel() {
 
 // -------------------------------------------------------------------- import
 
-private enum class ImportSource { LOCAL, WEBDAV, PODCAST }
+private enum class ImportSource { LOCAL, KDRIVE, PODCAST }
 
-/** One selectable row in the import list, whatever the source. */
+/** One selectable row in the import list, whatever the source. [key] is the
+ *  kDrive file id, the podcast enclosure URL, or the local content Uri. */
 private data class Importable(
     val key: String,
     val title: String,
     val sizeBytes: Long,
     val durationMs: Long,
-    val remoteUrl: String?,   // null → local content Uri in [localUri]
+    val ext: String,
     val localUri: Uri? = null,
 )
 
 /**
- * The "+" flow: choose a source (this phone / shared WebDAV folder / podcast
- * feed), pick one or several recordings, press Load. Every pick is copied or
- * downloaded into app-private storage before it appears on the homepage, so
- * playback works with no network at all. WebDAV and feed URLs are remembered
- * and pre-filled the next time.
+ * The "+" flow: choose a source (this phone / shared kDrive folder link /
+ * podcast feed), pick one or several recordings, press Load. Every pick is
+ * copied or downloaded into app-private storage before it appears on the
+ * homepage, so playback works with no network at all. The share link and feed
+ * URLs are remembered and pre-filled the next time.
  */
 @Composable
 private fun ImportDialog(
@@ -419,39 +419,53 @@ private fun ImportDialog(
     var progress by remember { mutableStateOf(0f) }
     var loadingLabel by remember { mutableStateOf<String?>(null) }
 
-    var webdavUrl by remember { mutableStateOf(RecordingStore.webdavUrl(ctx)) }
-    var webdavUser by remember { mutableStateOf(RecordingStore.webdavUser(ctx)) }
-    var webdavPass by remember { mutableStateOf(RecordingStore.webdavPass(ctx)) }
+    var kdriveUrl by remember { mutableStateOf(RecordingStore.kdriveUrl(ctx)) }
+    var kdriveConfig by remember { mutableStateOf<KDriveConfig?>(null) }
     var podcastUrl by remember { mutableStateOf(RecordingStore.podcastUrl(ctx)) }
 
     val localPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         candidates = uris.map { uri ->
-            val name = queryDisplayName(ctx, uri)
-            Importable(key = uri.toString(), title = name, sizeBytes = querySize(ctx, uri), durationMs = 0L, remoteUrl = null, localUri = uri)
+            val raw = queryRawDisplayName(ctx, uri)
+            Importable(
+                key = uri.toString(),
+                title = raw.substringBeforeLast('.').ifBlank { raw },
+                sizeBytes = querySize(ctx, uri),
+                durationMs = 0L,
+                ext = extOf(raw),
+                localUri = uri,
+            )
         }
         selected = candidates.map { it.key }.toSet()
         status = if (candidates.isEmpty()) "Nothing picked." else "${candidates.size} file(s) picked — press Load."
     }
 
-    fun connectWebdav() {
+    fun connectKdrive() {
         busy = true; status = null
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    WebDavClient.list(webdavUrl.trim(), webdavUser.trim(), webdavPass)
+                    val parsed = KDriveClient.parseShareUrl(kdriveUrl.trim())
+                        ?: throw IllegalArgumentException("Not a kDrive share link")
+                    val cfg = KDriveClient.init(parsed.first, parsed.second)
+                    cfg to KDriveClient.listFiles(cfg)
                         .filter { !it.isDir && it.name.substringAfterLast('.', "").lowercase() in AUDIO_EXTS }
                 }
             }
             busy = false
-            result.onSuccess { files ->
-                RecordingStore.setWebdavUrl(ctx, webdavUrl.trim())
-                RecordingStore.setWebdavUser(ctx, webdavUser.trim())
-                RecordingStore.setWebdavPass(ctx, webdavPass)
+            result.onSuccess { (cfg, files) ->
+                kdriveConfig = cfg
+                RecordingStore.setKdriveUrl(ctx, kdriveUrl.trim())
                 candidates = files.map {
-                    Importable(key = it.url, title = it.name.substringBeforeLast('.').ifBlank { it.name }, sizeBytes = it.size, durationMs = 0L, remoteUrl = it.url)
+                    Importable(
+                        key = it.id,
+                        title = it.name.substringBeforeLast('.').ifBlank { it.name },
+                        sizeBytes = it.size,
+                        durationMs = 0L,
+                        ext = extOf(it.name),
+                    )
                 }
                 selected = emptySet()
-                status = if (files.isEmpty()) "No audio files in that folder." else "${files.size} audio file(s) found — tick the ones to load."
+                status = if (files.isEmpty()) "No audio files in that share." else "${files.size} audio file(s) found — tick the ones to load."
             }.onFailure { status = "Could not connect: ${it.message}" }
         }
     }
@@ -466,7 +480,10 @@ private fun ImportDialog(
             result.onSuccess { eps ->
                 RecordingStore.setPodcastUrl(ctx, podcastUrl.trim())
                 candidates = eps.map {
-                    Importable(key = it.url, title = it.title, sizeBytes = it.sizeBytes, durationMs = it.durationMs, remoteUrl = it.url)
+                    Importable(
+                        key = it.url, title = it.title, sizeBytes = it.sizeBytes,
+                        durationMs = it.durationMs, ext = extOf(it.url.substringBefore('?')),
+                    )
                 }
                 selected = emptySet()
                 status = if (eps.isEmpty()) "No episodes in that feed." else "${eps.size} episode(s) found — tick the ones to load."
@@ -486,19 +503,18 @@ private fun ImportDialog(
                 val result = withContext(Dispatchers.IO) {
                     runCatching {
                         val safe = item.title.replace(Regex("[^A-Za-z0-9._ -]"), "_").take(80)
-                        val ext = item.remoteUrl?.substringBefore('?')?.substringAfterLast('.', "")
-                            ?.takeIf { it.length in 2..4 && it.all(Char::isLetterOrDigit) } ?: "mp3"
-                        val dest = File(RecordingStore.recordingsDir(ctx), "${System.nanoTime()}_$safe.$ext")
-                        if (item.remoteUrl != null) {
-                            // Credentials go ONLY to the WebDAV server, never to a podcast host.
-                            val (user, pass) =
-                                if (source == ImportSource.WEBDAV) webdavUser.trim() to webdavPass else "" to ""
-                            WebDavClient.download(item.remoteUrl, user, pass, dest) { progress = it }
-                        } else {
-                            ctx.contentResolver.openInputStream(item.localUri!!)!!.use { input ->
-                                dest.outputStream().use { output -> input.copyTo(output) }
+                        val dest = File(RecordingStore.recordingsDir(ctx), "${System.nanoTime()}_$safe.${item.ext}")
+                        when {
+                            item.localUri != null -> {
+                                ctx.contentResolver.openInputStream(item.localUri)!!.use { input ->
+                                    dest.outputStream().use { output -> input.copyTo(output) }
+                                }
+                                progress = 1f
                             }
-                            progress = 1f
+                            source == ImportSource.KDRIVE ->
+                                KDriveClient.downloadFile(kdriveConfig!!, item.key, item.sizeBytes, dest) { progress = it }
+                            else ->
+                                Http.download(item.key, dest, item.sizeBytes) { progress = it }
                         }
                         val duration = if (item.durationMs > 0) item.durationMs else probeDuration(dest)
                         Recording(
@@ -533,7 +549,7 @@ private fun ImportDialog(
                 when (source) {
                     null -> "Load recordings"
                     ImportSource.LOCAL -> "From this phone"
-                    ImportSource.WEBDAV -> "From WebDAV folder"
+                    ImportSource.KDRIVE -> "From shared kDrive folder"
                     ImportSource.PODCAST -> "From podcast feed"
                 },
                 fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold,
@@ -547,33 +563,22 @@ private fun ImportDialog(
                         localPicker.launch(arrayOf("audio/*"))
                     }
                     Spacer(Modifier.height(8.dp))
-                    SourceButton(Icons.Filled.CloudDownload, "Shared WebDAV folder (kDrive)") { source = ImportSource.WEBDAV }
+                    SourceButton(Icons.Filled.CloudDownload, "Shared kDrive folder (public link)") { source = ImportSource.KDRIVE }
                     Spacer(Modifier.height(8.dp))
                     SourceButton(Icons.Filled.RssFeed, "Podcast feed") { source = ImportSource.PODCAST }
                 }
 
-                if (source == ImportSource.WEBDAV) {
+                if (source == ImportSource.KDRIVE) {
                     OutlinedTextField(
-                        value = webdavUrl, onValueChange = { webdavUrl = it },
-                        label = { Text("Folder URL") },
-                        placeholder = { Text("https://123456.connect.kdrive.infomaniak.com/Talks") },
+                        value = kdriveUrl, onValueChange = { kdriveUrl = it },
+                        label = { Text("Public share link — no password needed") },
+                        placeholder = { Text("https://kdrive.infomaniak.com/app/share/…") },
                         singleLine = true, modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = webdavUser, onValueChange = { webdavUser = it },
-                        label = { Text("Email / username") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = webdavPass, onValueChange = { webdavPass = it },
-                        label = { Text("App password") },
-                        singleLine = true, visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth(),
                     )
                     Spacer(Modifier.height(8.dp))
                     Button(
-                        onClick = { connectWebdav() },
-                        enabled = !busy && webdavUrl.isNotBlank(),
+                        onClick = { connectKdrive() },
+                        enabled = !busy && kdriveUrl.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = Accent),
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text(if (busy && loadingLabel == null) "Connecting…" else "Connect") }
@@ -690,8 +695,13 @@ private fun formatSize(bytes: Long): String = when {
     else -> ""
 }
 
-/** Human-readable name for a picked file, with the extension stripped. */
-private fun queryDisplayName(ctx: Context, uri: Uri): String {
+/** File extension of [name], validated, defaulting to mp3. */
+private fun extOf(name: String): String =
+    name.substringAfterLast('.', "")
+        .takeIf { it.length in 2..4 && it.all(Char::isLetterOrDigit) }?.lowercase() ?: "mp3"
+
+/** Display name of a picked file, extension included. */
+private fun queryRawDisplayName(ctx: Context, uri: Uri): String {
     var name: String? = null
     runCatching {
         ctx.contentResolver.query(uri, null, null, null, null)?.use { c ->
@@ -699,8 +709,7 @@ private fun queryDisplayName(ctx: Context, uri: Uri): String {
             if (idx >= 0 && c.moveToFirst()) name = c.getString(idx)
         }
     }
-    val raw = name ?: uri.lastPathSegment ?: "Recording"
-    return raw.substringBeforeLast('.').ifBlank { raw }
+    return name ?: uri.lastPathSegment ?: "Recording"
 }
 
 private fun querySize(ctx: Context, uri: Uri): Long {

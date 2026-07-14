@@ -45,9 +45,7 @@ object RecordingStore {
     private const val PREFS = "retreat_player"
     private const val KEY_RECORDINGS = "recordings"
     private const val KEY_NEXT_ID = "next_id"
-    private const val KEY_WEBDAV_URL = "webdav_url"
-    private const val KEY_WEBDAV_USER = "webdav_user"
-    private const val KEY_WEBDAV_PASS = "webdav_pass"
+    private const val KEY_KDRIVE_URL = "kdrive_url"
     private const val KEY_PODCAST_URL = "podcast_url"
 
     private fun prefs(ctx: Context) =
@@ -116,14 +114,8 @@ object RecordingStore {
 
     // ---- Remembered import sources: entered once, pre-filled forever after ----
 
-    fun webdavUrl(ctx: Context): String = prefs(ctx).getString(KEY_WEBDAV_URL, "") ?: ""
-    fun setWebdavUrl(ctx: Context, v: String) = prefs(ctx).edit().putString(KEY_WEBDAV_URL, v).apply()
-
-    fun webdavUser(ctx: Context): String = prefs(ctx).getString(KEY_WEBDAV_USER, "") ?: ""
-    fun setWebdavUser(ctx: Context, v: String) = prefs(ctx).edit().putString(KEY_WEBDAV_USER, v).apply()
-
-    fun webdavPass(ctx: Context): String = prefs(ctx).getString(KEY_WEBDAV_PASS, "") ?: ""
-    fun setWebdavPass(ctx: Context, v: String) = prefs(ctx).edit().putString(KEY_WEBDAV_PASS, v).apply()
+    fun kdriveUrl(ctx: Context): String = prefs(ctx).getString(KEY_KDRIVE_URL, "") ?: ""
+    fun setKdriveUrl(ctx: Context, v: String) = prefs(ctx).edit().putString(KEY_KDRIVE_URL, v).apply()
 
     fun podcastUrl(ctx: Context): String = prefs(ctx).getString(KEY_PODCAST_URL, "") ?: ""
     fun setPodcastUrl(ctx: Context, v: String) = prefs(ctx).edit().putString(KEY_PODCAST_URL, v).apply()
