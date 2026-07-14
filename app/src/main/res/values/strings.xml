@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Retreat Player</string>
+    <string name="channel_playback">Playback</string>
+    <string name="channel_playback_desc">Shows what is playing and its transport controls.</string>
+    <string name="stop">Stop</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="back10">Back 10 seconds</string>
+    <string name="fwd10">Forward 10 seconds</string>
+</resources>
