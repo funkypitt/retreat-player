@@ -8,6 +8,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
@@ -27,8 +29,12 @@ import kotlinx.coroutines.launch
  * Foreground service that plays exactly one recording, with the same
  * non-interruption guarantee as Retreat Timer's bells: foreground type
  * mediaPlayback (Android will not kill it mid-playback), MediaPlayer wake mode
- * keeping the CPU awake through deep sleep, and no audio-focus handling so
- * nothing else on the phone can pause it.
+ * keeping the CPU awake through deep sleep.
+ *
+ * Only ONE recording may sound at a time. Audio focus is one-directional by
+ * design: starting playback CLAIMS exclusive focus, so any well-behaved player
+ * on the phone pauses — but focus-loss callbacks are deliberately ignored, so
+ * nothing on the phone can pause us.
  *
  * Deliberately NO auto-advance: when the recording ends the service stops.
  * A recording plays only because the user pressed play on it.
@@ -36,6 +42,7 @@ import kotlinx.coroutines.launch
 class PlayerService : Service() {
 
     private var player: MediaPlayer? = null
+    private var focusRequest: AudioFocusRequest? = null
     private var startupLock: PowerManager.WakeLock? = null
     private var currentTitle: String? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -68,6 +75,7 @@ class PlayerService : Service() {
 
         startPlayerForeground(buildNotification(playing = true, position = 0, duration = 0))
         acquireStartupLock()
+        claimAudioFocus()
 
         runCatching {
             player = MediaPlayer().apply {
@@ -202,6 +210,32 @@ class PlayerService : Service() {
         }
     }
 
+    /** Exclusive focus: other players stop; our listener ignores every change,
+     *  so no app can do the same to us. */
+    private fun claimAudioFocus() {
+        if (focusRequest != null) return
+        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build(),
+            )
+            .setOnAudioFocusChangeListener { /* non-interruption: never react */ }
+            .build()
+        focusRequest = req
+        am.requestAudioFocus(req)
+    }
+
+    private fun releaseAudioFocus() {
+        focusRequest?.let {
+            val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            runCatching { am.abandonAudioFocusRequest(it) }
+        }
+        focusRequest = null
+    }
+
     private fun acquireStartupLock() {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         startupLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "RetreatPlayer:start").apply {
@@ -214,6 +248,7 @@ class PlayerService : Service() {
         ticker?.cancel()
         runCatching { player?.release() }
         player = null
+        releaseAudioFocus()
         runCatching { if (startupLock?.isHeld == true) startupLock?.release() }
         startupLock = null
         PlaybackState.clear()

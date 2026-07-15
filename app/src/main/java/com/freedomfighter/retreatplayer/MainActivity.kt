@@ -287,20 +287,29 @@ private fun RecordingTile(
 // -------------------------------------------------------------------- player
 
 /**
- * The player, pinned to the bottom whenever a recording is loaded. Elapsed and
- * remaining time are shown TOGETHER, large and labelled, flanking the progress
- * bar — the two numbers a retreat manager actually needs at a glance.
+ * The player footer, ALWAYS visible at the bottom of the homepage. While a
+ * recording is loaded it shows the title, progress, and full transport;
+ * elapsed and remaining time are shown TOGETHER, large and labelled, flanking
+ * the progress bar. When nothing plays it stays in place as a slim idle strip,
+ * so what the phone is (or isn't) playing is always readable at a glance.
  */
 @Composable
 private fun PlayerPanel() {
     val ctx = LocalContext.current
-    val title = PlaybackState.title ?: return
+    val title = PlaybackState.title
     val duration = PlaybackState.durationMs
     val position = PlaybackState.positionMs
     val playing = PlaybackState.isPlaying
 
     Surface(color = Ink, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
+        if (title == null) {
+            Text(
+                "Nothing playing — tap ▶ on a recording",
+                color = Color.White.copy(alpha = 0.55f), fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+            )
+        } else Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
             Text(
                 title,
                 color = Color.White, fontFamily = FontFamily.Serif,
