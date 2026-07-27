@@ -16,8 +16,6 @@ object PlaybackState {
     var positionMs by mutableStateOf(0)
     var durationMs by mutableStateOf(0)
 
-    val remainingMs: Int get() = (durationMs - positionMs).coerceAtLeast(0)
-
     fun clear() {
         recordingId = null
         title = null

@@ -51,12 +51,22 @@ class PlayerService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
+        val action = intent?.action
+        // Every transport action needs a live player. If the recording ended in
+        // the very instant the control was used — a drag released just as the
+        // last second played — stop instead of leaving a started service behind
+        // with no notification.
+        if (action in TRANSPORT && player == null) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        when (action) {
             ACTION_STOP -> finish()
             ACTION_TOGGLE -> togglePause()
             ACTION_BACK10 -> seekBy(-10_000)
             ACTION_FWD10 -> seekBy(+10_000)
-            ACTION_RESTART -> seekToStart()
+            ACTION_RESTART -> seekTo(0)
+            ACTION_SEEK -> seekTo(intent.getIntExtra(EXTRA_POSITION_MS, 0))
             else -> startPlayback(intent)
         }
         return START_NOT_STICKY
@@ -116,19 +126,20 @@ class PlayerService : Service() {
         pushNotification()
     }
 
-    private fun seekBy(deltaMs: Int) {
+    /** Jump to an absolute position — what the draggable progress bar sends, and
+     *  what "back to the beginning" is a special case of. A talk can be an hour
+     *  long, so reaching a passage by ±10s taps alone is not realistic. */
+    private fun seekTo(positionMs: Int) {
         val p = player ?: return
-        val target = (p.currentPosition + deltaMs).coerceIn(0, p.duration)
+        val target = positionMs.coerceIn(0, runCatching { p.duration }.getOrDefault(0))
         runCatching { p.seekTo(target) }
         PlaybackState.positionMs = target
         pushNotification()
     }
 
-    private fun seekToStart() {
+    private fun seekBy(deltaMs: Int) {
         val p = player ?: return
-        runCatching { p.seekTo(0) }
-        PlaybackState.positionMs = 0
-        pushNotification()
+        seekTo(runCatching { p.currentPosition }.getOrDefault(0) + deltaMs)
     }
 
     /** Drive the progress readouts (elapsed and remaining) while playing. */
@@ -268,9 +279,15 @@ class PlayerService : Service() {
         const val ACTION_BACK10 = "com.freedomfighter.retreatplayer.BACK10"
         const val ACTION_FWD10 = "com.freedomfighter.retreatplayer.FWD10"
         const val ACTION_RESTART = "com.freedomfighter.retreatplayer.RESTART"
+        const val ACTION_SEEK = "com.freedomfighter.retreatplayer.SEEK"
         const val EXTRA_PATH = "path"
         const val EXTRA_TITLE = "title"
         const val EXTRA_ID = "id"
+        private const val EXTRA_POSITION_MS = "position_ms"
+
+        /** Actions that act on an already-playing recording. */
+        private val TRANSPORT =
+            setOf(ACTION_TOGGLE, ACTION_BACK10, ACTION_FWD10, ACTION_RESTART, ACTION_SEEK)
         private const val CHANNEL_ID = "retreat_playback"
         private const val NOTIF_ID = 11
 
@@ -289,6 +306,16 @@ class PlayerService : Service() {
         fun back10(ctx: Context) = command(ctx, ACTION_BACK10)
         fun fwd10(ctx: Context) = command(ctx, ACTION_FWD10)
         fun restart(ctx: Context) = command(ctx, ACTION_RESTART)
+
+        /** Jump straight to [positionMs] — sent by the draggable progress bar
+         *  when the finger lifts. */
+        fun seekTo(ctx: Context, positionMs: Int) {
+            ctx.startService(
+                Intent(ctx, PlayerService::class.java)
+                    .setAction(ACTION_SEEK)
+                    .putExtra(EXTRA_POSITION_MS, positionMs),
+            )
+        }
 
         private fun command(ctx: Context, action: String) {
             ctx.startService(Intent(ctx, PlayerService::class.java).setAction(action))

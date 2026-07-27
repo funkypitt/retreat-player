@@ -292,6 +292,10 @@ private fun RecordingTile(
  * elapsed and remaining time are shown TOGETHER, large and labelled, flanking
  * the progress bar. When nothing plays it stays in place as a slim idle strip,
  * so what the phone is (or isn't) playing is always readable at a glance.
+ *
+ * The progress bar is a slider: drag it either way to move through the
+ * recording, with both readouts tracking the finger so the destination is
+ * legible before letting go. ±10s and restart remain for fine adjustment.
  */
 @Composable
 private fun PlayerPanel() {
@@ -300,6 +304,13 @@ private fun PlayerPanel() {
     val duration = PlaybackState.durationMs
     val position = PlaybackState.positionMs
     val playing = PlaybackState.isPlaying
+
+    // While a drag is under way the thumb and the two readouts follow the
+    // finger, not the ticker — which would otherwise yank them back twice a
+    // second. The seek is sent once, when the finger lifts.
+    var scrubMs by remember { mutableStateOf<Int?>(null) }
+    val shown = scrubMs ?: position
+    val remaining = (duration - shown).coerceAtLeast(0)
 
     Surface(color = Ink, modifier = Modifier.fillMaxWidth()) {
         if (title == null) {
@@ -317,11 +328,23 @@ private fun PlayerPanel() {
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
             if (duration > 0) {
-                LinearProgressIndicator(
-                    progress = { position.toFloat() / duration.toFloat() },
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                    color = Color(0xFFE7C9A0),
-                    trackColor = Color.White.copy(alpha = 0.2f),
+                // Draggable, not just an indicator: a talk runs an hour, so
+                // reaching a passage has to be one gesture rather than a hundred
+                // taps on ±10s.
+                Slider(
+                    value = shown.toFloat(),
+                    onValueChange = { scrubMs = it.toInt() },
+                    onValueChangeFinished = {
+                        scrubMs?.let { PlayerService.seekTo(ctx, it) }
+                        scrubMs = null
+                    },
+                    valueRange = 0f..duration.toFloat(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color(0xFFE7C9A0),
+                        activeTrackColor = Color(0xFFE7C9A0),
+                        inactiveTrackColor = Color.White.copy(alpha = 0.2f),
+                    ),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 )
             }
             Row(
@@ -330,7 +353,7 @@ private fun PlayerPanel() {
             ) {
                 Column {
                     Text(
-                        formatClock(position),
+                        formatClock(shown),
                         color = Color.White, fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold, fontSize = 24.sp,
                     )
@@ -347,7 +370,7 @@ private fun PlayerPanel() {
                 Spacer(Modifier.weight(1f))
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        "−${formatClock(PlaybackState.remainingMs)}",
+                        "−${formatClock(remaining)}",
                         color = Color(0xFFE7C9A0), fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold, fontSize = 24.sp,
                     )
