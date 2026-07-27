@@ -62,6 +62,18 @@ private val CardBg = Color(0xFFFFFFFF)
 
 private val AUDIO_EXTS = setOf("mp3", "m4a", "aac", "wav", "ogg", "flac", "opus", "mp4")
 
+/**
+ * What the "files on this phone" picker will show. The audio wildcard alone
+ * hides files the provider failed to type — FLAC and Opus are routinely handed
+ * over as `application/octet-stream` by file managers and cloud providers, and
+ * the picker then greys out a recording that plays perfectly well. Allowing the
+ * untyped catch-all makes those reachable; the cost is that other binaries show
+ * up in the picker too, so a wrong pick is possible. MediaPlayer identifies
+ * audio by sniffing content rather than by name, so a genuine recording plays
+ * whatever type its provider claimed.
+ */
+private val PICKABLE_TYPES = arrayOf("audio/*", "application/octet-stream")
+
 class MainActivity : ComponentActivity() {
 
     private val requestNotif =
@@ -592,7 +604,7 @@ private fun ImportDialog(
                 if (source == null) {
                     SourceButton(Icons.Filled.PhoneAndroid, "Files on this phone") {
                         source = ImportSource.LOCAL
-                        localPicker.launch(arrayOf("audio/*"))
+                        localPicker.launch(PICKABLE_TYPES)
                     }
                     Spacer(Modifier.height(8.dp))
                     SourceButton(Icons.Filled.CloudDownload, "Shared kDrive folder (public link)") { source = ImportSource.KDRIVE }
