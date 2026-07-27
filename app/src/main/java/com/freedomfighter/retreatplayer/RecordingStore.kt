@@ -6,12 +6,14 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * The two fixed homepage sections, plus NEW where freshly loaded recordings land
+ * The three fixed homepage sections, plus NEW where freshly loaded recordings land
  * until the user files them. Bells & chanting sits on top of the page because it
- * is used every day.
+ * is used every day; guided meditations sit between the bells and the talks, as
+ * they do in a sitting. Enum order is the section order, so keep it that way.
  */
 enum class Category(val key: String, val label: String) {
     BELLS("bells", "Bells & chanting"),
+    MEDITATIONS("meditations", "Guided meditations"),
     TALKS("talks", "Dharma talks"),
     NEW("new", "Just loaded — move into a category");
 

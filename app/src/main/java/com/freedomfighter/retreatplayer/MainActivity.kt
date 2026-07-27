@@ -139,7 +139,7 @@ private fun PlayerApp() {
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item { Spacer(Modifier.height(2.dp)) }
-                listOf(Category.BELLS, Category.TALKS, Category.NEW).forEach { cat ->
+                listOf(Category.BELLS, Category.MEDITATIONS, Category.TALKS, Category.NEW).forEach { cat ->
                     val members = recordings.filter { it.category == cat }
                     if (cat == Category.NEW && members.isEmpty()) return@forEach
                     item(key = "header_${cat.key}") { SectionHeader(cat) }
