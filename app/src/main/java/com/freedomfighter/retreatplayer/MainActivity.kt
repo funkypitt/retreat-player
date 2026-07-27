@@ -111,6 +111,12 @@ private fun PlayerApp() {
     var recordings by remember { mutableStateOf(RecordingStore.load(ctx)) }
     var showImport by remember { mutableStateOf(false) }
 
+    // A background download saves straight to storage and bumps this counter;
+    // reload so the freshly-downloaded recording shows up on the homepage.
+    LaunchedEffect(DownloadState.libraryVersion) {
+        recordings = RecordingStore.load(ctx)
+    }
+
     fun persist(newList: List<Recording>) {
         recordings = newList
         RecordingStore.save(ctx, newList)
@@ -538,28 +544,44 @@ private fun ImportDialog(
     fun load() {
         val picks = candidates.filter { it.key in selected }
         if (picks.isEmpty()) return
+        val (local, remote) = picks.partition { it.localUri != null }
+
+        // Network downloads go to the background service so a locked screen can't
+        // kill them; enqueue and let them land on the homepage as they finish.
+        remote.forEach { item ->
+            val safe = item.title.replace(Regex("[^A-Za-z0-9._ -]"), "_").take(80)
+            DownloadService.enqueue(
+                ctx,
+                key = item.key,
+                title = item.title,
+                filename = "${System.nanoTime()}_$safe.${item.ext}",
+                sizeBytes = item.sizeBytes,
+                durationMs = item.durationMs,
+                kdrive = if (source == ImportSource.KDRIVE) kdriveConfig else null,
+            )
+        }
+        selected = selected - remote.map { it.key }.toSet()
+        if (remote.isNotEmpty()) {
+            status = "Downloading ${remote.size} in the background — they appear on your homepage as they finish. You can close this."
+        }
+        if (local.isEmpty()) return
+
+        // Local file copies are quick and rely on the just-granted read permission,
+        // so they stay inline.
         busy = true
         scope.launch {
             var ok = 0
-            picks.forEachIndexed { i, item ->
-                loadingLabel = "Loading ${i + 1}/${picks.size} — ${item.title}"
+            local.forEachIndexed { i, item ->
+                loadingLabel = "Copying ${i + 1}/${local.size} — ${item.title}"
                 progress = 0f
                 val result = withContext(Dispatchers.IO) {
                     runCatching {
                         val safe = item.title.replace(Regex("[^A-Za-z0-9._ -]"), "_").take(80)
                         val dest = File(RecordingStore.recordingsDir(ctx), "${System.nanoTime()}_$safe.${item.ext}")
-                        when {
-                            item.localUri != null -> {
-                                ctx.contentResolver.openInputStream(item.localUri)!!.use { input ->
-                                    dest.outputStream().use { output -> input.copyTo(output) }
-                                }
-                                progress = 1f
-                            }
-                            source == ImportSource.KDRIVE ->
-                                KDriveClient.downloadFile(kdriveConfig!!, item.key, item.sizeBytes, dest) { progress = it }
-                            else ->
-                                Http.download(item.key, dest, item.sizeBytes) { progress = it }
+                        ctx.contentResolver.openInputStream(item.localUri!!)!!.use { input ->
+                            dest.outputStream().use { output -> input.copyTo(output) }
                         }
+                        progress = 1f
                         val duration = if (item.durationMs > 0) item.durationMs else probeDuration(dest)
                         Recording(
                             id = RecordingStore.nextId(ctx),
@@ -578,7 +600,7 @@ private fun ImportDialog(
             }
             loadingLabel = null
             busy = false
-            selected = emptySet()
+            selected = selected - local.map { it.key }.toSet()
             if (ok > 0) status = "Loaded $ok recording(s) — stored on this phone, available offline."
         }
     }
@@ -663,18 +685,24 @@ private fun ImportDialog(
                     Spacer(Modifier.height(8.dp))
                     Column(Modifier.heightIn(max = 260.dp).verticalScroll(rememberScrollState())) {
                         candidates.forEach { item ->
-                            val already = item.title in loadedTitles
+                            val already = item.title in loadedTitles || item.title in DownloadState.justAdded
+                            val downloading = item.key in DownloadState.inFlight
+                            val err = DownloadState.errors[item.key]
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                if (already) {
-                                    Text(
+                                when {
+                                    already -> Text(
                                         "✓", color = GoodGreen, fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(start = 12.dp, end = 14.dp),
                                     )
-                                } else {
-                                    Checkbox(
+                                    downloading -> CircularProgressIndicator(
+                                        progress = { DownloadState.progress[item.key] ?: 0f },
+                                        modifier = Modifier.padding(start = 12.dp, end = 14.dp).size(20.dp),
+                                        strokeWidth = 2.dp, color = Accent,
+                                    )
+                                    else -> Checkbox(
                                         checked = item.key in selected,
                                         onCheckedChange = { on ->
                                             selected = if (on) selected + item.key else selected - item.key
@@ -689,8 +717,9 @@ private fun ImportDialog(
                                         formatDuration(item.durationMs).ifBlank { null },
                                         formatSize(item.sizeBytes).ifBlank { null },
                                     ).joinToString("  ·  ")
-                                    if (meta.isNotEmpty()) {
-                                        Text(meta, fontSize = 11.sp, color = Ink.copy(alpha = 0.5f))
+                                    when {
+                                        err != null -> Text("Failed: $err — tick to retry", fontSize = 11.sp, color = Accent)
+                                        meta.isNotEmpty() -> Text(meta, fontSize = 11.sp, color = Ink.copy(alpha = 0.5f))
                                     }
                                 }
                             }
@@ -725,7 +754,8 @@ private fun SourceButton(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 
 // -------------------------------------------------------------------- helpers
 
-private fun probeDuration(file: File): Long = runCatching {
+// Package-visible so [DownloadService] can stamp a downloaded file's length.
+internal fun probeDuration(file: File): Long = runCatching {
     val mmr = MediaMetadataRetriever()
     mmr.setDataSource(file.absolutePath)
     val d = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
