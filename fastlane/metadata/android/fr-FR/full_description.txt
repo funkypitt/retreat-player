@@ -1,0 +1,13 @@
+Retreat Player lit des MP3 d'enseignements du Dhamma, de cloches, de méditations guidées et de chants pendant une retraite de méditation. Un seul principe : une fois la lecture lancée, rien ne l'interrompt.
+
+- Chaque enregistrement est téléchargé dans le stockage privé de l'application au moment du chargement ; la lecture ne nécessite aucun réseau, le mode avion convient.
+- La lecture tourne dans un service au premier plan tenant un wake lock : le système ne peut ni l'arrêter ni la mettre en pause, même écran éteint pendant un enseignement d'une heure.
+- L'application ne prend pas le focus audio : rien d'autre sur le téléphone ne peut baisser ou interrompre un enseignement.
+- Pendant la lecture, l'écran reste allumé et montre la progression.
+- Un enregistrement se lit uniquement parce que vous avez appuyé sur lecture, et une seule fois : à la fin, rien d'autre ne démarre.
+
+Chargez des enregistrements depuis les fichiers du téléphone, un dossier kDrive partagé (lien public Infomaniak) ou n'importe quel flux podcast. Classez chaque enregistrement sous Cloches et chants, Méditations guidées ou Enseignements, et ordonnez-les à votre guise. Le lecteur du bas affiche le temps écoulé et le temps restant côte à côte, avec lecture/pause, arrêt, ±10 s et retour au début.
+
+Sans publicité, sans pistage, sans compte. Le réseau ne sert qu'au chargement ; la lecture est entièrement hors ligne.
+
+Pierre Gallaz · développé avec Claude Code

@@ -43,3 +43,11 @@ starts, nothing interrupts it.**
 
 No ads, no tracking, no accounts. Network is used only while loading
 recordings; playback is fully offline.
+
+## Crédits / Credits
+
+© 2026 Pierre Gallaz. Développé avec [Claude Code](https://claude.com/claude-code) (Anthropic).
+Licence MIT, voir `LICENSE`.
+
+© 2026 Pierre Gallaz. Developed with [Claude Code](https://claude.com/claude-code) (Anthropic).
+MIT licence, see `LICENSE`.

@@ -8,4 +8,5 @@
     <string name="pause">Pause</string>
     <string name="back10">Back 10 seconds</string>
     <string name="fwd10">Forward 10 seconds</string>
+    <string name="credits">Pierre Gallaz · developed with Claude Code</string>
 </resources>

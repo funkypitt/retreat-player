@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -168,6 +169,14 @@ private fun PlayerApp() {
                             },
                         )
                     }
+                }
+                item(key = "credits") {
+                    Text(
+                        stringResource(R.string.credits),
+                        fontSize = 11.sp, color = Ink.copy(alpha = 0.45f),
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        textAlign = TextAlign.Center,
+                    )
                 }
                 item { Spacer(Modifier.height(20.dp)) }
             }
