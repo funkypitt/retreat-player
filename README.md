@@ -1,3 +1,5 @@
+![Retreat Player](docs/banner.png)
+
 # Retreat Player
 
 An Android app that plays MP3s of dhamma talks, bells, and chanting during a
