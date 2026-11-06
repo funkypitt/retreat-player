@@ -17,7 +17,7 @@ Sibling of [Retreat Timer](https://github.com/funkypitt/retreat-timer). No ads, 
 - Tap a tile to play. The player shows elapsed and remaining time, with play/pause,
   stop, ±10 s and back to the beginning.
 - While a recording plays the screen stays on, and playback goes on with the screen off.
-  The app takes no audio focus, so nothing else on the phone can duck or pause a talk.
+  The app ignores audio-focus requests from other apps, so nothing else on the phone can duck or pause a talk.
 - The network is used only while loading. No tracking.
 
 More detail: [docs/NOTES.md](docs/NOTES.md).

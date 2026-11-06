@@ -2,7 +2,7 @@ Retreat Player lit des MP3 d'enseignements du Dhamma, de cloches, de méditation
 
 - Chaque enregistrement est téléchargé dans le stockage privé de l'application au moment du chargement ; la lecture ne nécessite aucun réseau, le mode avion convient.
 - La lecture tourne dans un service au premier plan tenant un wake lock : le système ne peut ni l'arrêter ni la mettre en pause, même écran éteint pendant un enseignement d'une heure.
-- L'application ne prend pas le focus audio : rien d'autre sur le téléphone ne peut baisser ou interrompre un enseignement.
+- L'application ignore les demandes de focus audio des autres applications : rien d'autre sur le téléphone ne peut baisser ou interrompre un enseignement.
 - Pendant la lecture, l'écran reste allumé et montre la progression.
 - Un enregistrement se lit uniquement parce que vous avez appuyé sur lecture, et une seule fois : à la fin, rien d'autre ne démarre.
 

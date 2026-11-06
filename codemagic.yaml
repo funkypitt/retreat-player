@@ -1,0 +1,43 @@
+# Codemagic: signed bundle → Google Play, internal testing track.
+# Start a build by hand, or push a tag vX.Y.Z. Needs, in Codemagic:
+#   - Code signing identities → Android keystores: the release keystore under the
+#     reference name "gallaz" (sets CM_KEYSTORE_PATH, CM_KEYSTORE_PASSWORD,
+#     CM_KEY_ALIAS, CM_KEY_PASSWORD at build time);
+#   - the app's environment variable group "google_play" holding
+#     GCLOUD_SERVICE_ACCOUNT_CREDENTIALS (the service account's JSON key, secure).
+# The very first bundle of a new app must be uploaded in Play Console by hand;
+# the API only accepts uploads after that.
+workflows:
+  android-play:
+    name: Android → Google Play (internal)
+    max_build_duration: 30
+    instance_type: linux_x2
+    environment:
+      java: 17
+      android_signing:
+        - gallaz
+      groups:
+        - google_play
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'v*'
+          include: true
+      cancel_previous_builds: true
+    scripts:
+      - name: Build signed release bundle
+        script: |
+          ./gradlew bundleRelease \
+            -Pandroid.injected.signing.store.file="$CM_KEYSTORE_PATH" \
+            -Pandroid.injected.signing.store.password="$CM_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$CM_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$CM_KEY_PASSWORD"
+    artifacts:
+      - app/build/outputs/bundle/release/*.aab
+      - app/build/outputs/mapping/release/mapping.txt
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: false

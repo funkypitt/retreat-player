@@ -4,7 +4,6 @@
     <!-- Download recordings from WebDAV shares and podcast feeds. Playback
          itself never touches the network: every file is stored locally first. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Keep the CPU awake for the whole recording, even in deep sleep. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Play through a foreground service so the OS never kills playback. -->

@@ -6,14 +6,14 @@ plugins {
 
 android {
     namespace = "com.freedomfighter.retreatplayer"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.freedomfighter.retreatplayer"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 8
-        versionName = "1.5.1"
+        targetSdk = 36
+        versionCode = 9
+        versionName = "1.6.0"
     }
 
     buildTypes {

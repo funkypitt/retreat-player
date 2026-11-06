@@ -12,6 +12,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -82,6 +83,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Android 15+ draws behind the system bars whatever we say; do it on every
+        // version so the layout is the same everywhere, and pad the content below.
+        enableEdgeToEdge()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -132,7 +136,10 @@ private fun PlayerApp() {
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = Paper) {
-        Column(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
+        ) {
             Spacer(Modifier.height(16.dp))
             Header(onAdd = { showImport = true })
             LazyColumn(
@@ -345,9 +352,9 @@ private fun PlayerPanel() {
                 "Nothing playing — tap ▶ on a recording",
                 color = Color.White.copy(alpha = 0.55f), fontSize = 13.sp,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(vertical = 16.dp),
             )
-        } else Column(Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
+        } else Column(Modifier.navigationBarsPadding().padding(horizontal = 18.dp, vertical = 12.dp)) {
             Text(
                 title,
                 color = Color.White, fontFamily = FontFamily.Serif,
@@ -764,13 +771,17 @@ private fun SourceButton(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 // -------------------------------------------------------------------- helpers
 
 // Package-visible so [DownloadService] can stamp a downloaded file's length.
-internal fun probeDuration(file: File): Long = runCatching {
+internal fun probeDuration(file: File): Long {
     val mmr = MediaMetadataRetriever()
-    mmr.setDataSource(file.absolutePath)
-    val d = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-    mmr.release()
-    d
-}.getOrDefault(0L)
+    return try {
+        mmr.setDataSource(file.absolutePath)
+        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+    } catch (e: Exception) {
+        0L
+    } finally {
+        runCatching { mmr.release() }
+    }
+}
 
 private fun formatSize(bytes: Long): String = when {
     bytes >= 1_000_000 -> "%.1f MB".format(bytes / 1_000_000.0)

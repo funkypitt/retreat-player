@@ -2,7 +2,6 @@
 <resources>
     <style name="Theme.RetreatPlayer" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">#F7F3EA</item>
-        <item name="android:statusBarColor">#F7F3EA</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>
