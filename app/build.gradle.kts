@@ -12,7 +12,7 @@ android {
         applicationId = "com.freedomfighter.retreatplayer"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
+        versionCode = 10
         versionName = "1.6.0"
     }
 
