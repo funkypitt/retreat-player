@@ -4,7 +4,7 @@
 #     reference name "gallaz" (sets CM_KEYSTORE_PATH, CM_KEYSTORE_PASSWORD,
 #     CM_KEY_ALIAS, CM_KEY_PASSWORD at build time);
 #   - the app's environment variable group "google_play" holding
-#     GCLOUD_SERVICE_ACCOUNT_CREDENTIALS (the service account's JSON key, secure).
+#     GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS (the service account's JSON key, secure).
 # The very first bundle of a new app must be uploaded in Play Console by hand;
 # the API only accepts uploads after that.
 workflows:
@@ -38,6 +38,6 @@ workflows:
       - app/build/outputs/mapping/release/mapping.txt
     publishing:
       google_play:
-        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
         track: internal
         submit_as_draft: true  # the console's "Start rollout" stays a human step
